@@ -1,0 +1,9 @@
+target/
+data/
+.deps/
+*.class
+.idea/
+*.iml
+.project
+.classpath
+.settings/
