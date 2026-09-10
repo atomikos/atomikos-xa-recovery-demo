@@ -1,5 +1,7 @@
 # inject fail-before-commit → watch Atomikos recover
 
+[![Java CI with Maven](https://github.com/atomikos/atomikos-xa-recovery-demo/actions/workflows/maven.yml/badge.svg)](https://github.com/atomikos/atomikos-xa-recovery-demo/actions/workflows/maven.yml)
+
 A runnable demo built on [j-xa-tester](https://github.com/rrobetti/j-xa-tester):
 a two-phase-commit money transfer across two H2 databases, coordinated by
 [Atomikos](https://www.atomikos.com/). j-xa-tester wraps one of the two
