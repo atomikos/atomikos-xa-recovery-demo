@@ -5,6 +5,31 @@ recovering an in-doubt XA transaction after a fault injected with
 [j-xa-tester](https://github.com/rrobetti/j-xa-tester). The most valuable
 contribution is **a new failure scenario**.
 
+## Scope: spec-level scenarios only
+
+This repo accepts only **generic, spec-level** scenarios — behaviours any
+conformant JTA/XA transaction manager must exhibit. It is a showcase, not a
+transaction-manager conformance or hardening suite.
+
+**The test to apply:** *could you derive this scenario purely from the
+JTA/XA specifications plus a textbook, without knowing anything
+implementation-specific?* If yes, it is in scope. If it depends on a
+provider-specific quirk, an implementation-specific timing or race window, or
+any behaviour the specs leave open, it is **out of scope here**.
+
+- **In scope** — commit fails after all resources voted to commit → the TM
+  recovers to commit; a resource fails at prepare → all roll back; `recover()`
+  returns in-doubt Xids → the TM resolves them; a heuristic outcome is
+  reported.
+- **Out of scope** — provider-specific driver/broker behaviour;
+  implementation-specific timing or race windows; heuristic-resolution
+  nuances or anything requiring knowledge beyond the JTA/XA specs. Genuinely
+  generic, provider-neutral capabilities belong upstream in
+  [j-xa-tester](https://github.com/rrobetti/j-xa-tester); pull requests that
+  go beyond spec-level behaviour here will be declined.
+
+Pull requests are reviewed against this rule.
+
 ## Add a scenario
 
 XA can fail in many ways. This repo demonstrates one (fail-before-commit).

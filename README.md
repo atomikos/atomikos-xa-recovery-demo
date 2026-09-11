@@ -45,15 +45,13 @@ resolve it automatically on startup, with no application code involved.
    its own. Watch the balance and ledger count converge in the console
    output.
 
-## Why the timeout matters
+## Keeping the demo quick
 
-Atomikos' recovery thread deliberately refuses to force-complete a
-`COMMITTING` transaction until *that transaction's own timeout* has
-expired — it doesn't want to race a commit that might still be legitimately
-in flight on another thread or node. `Phase1Fail` sets a 5-second timeout on
-just this one transaction (`UserTransactionManager.setTransactionTimeout`)
-so `Phase2Recover`'s recovery is prompt enough to watch; production
-deployments would instead size this off their real `default_jta_timeout`.
+An in-doubt transaction is recovered after its timeout has elapsed, so
+`Phase1Fail` sets a short 5-second timeout on just this one transaction
+(`UserTransactionManager.setTransactionTimeout`) — enough for
+`Phase2Recover`'s recovery to be prompt to watch. Production deployments would
+size this off their real `default_jta_timeout`.
 
 ## Two recovery paths, two ways of running them
 
