@@ -97,8 +97,8 @@ to watch; production would use its real values.
 
 ## Recovery paths, and how each one is run
 
-There are three different "Atomikos recovers" stories here, and only one of
-them fits inside a JUnit test:
+There are four different "Atomikos recovers" stories here, and two of them
+fit inside a JUnit test:
 
 - **Self-heal, no crash** (`FailBeforeCommitSelfHealsTest`): if the process
   is never killed, Atomikos retries a failed commit call on its own, inside
@@ -115,6 +115,17 @@ them fits inside a JUnit test:
   ```bash
   mvn test
   ```
+
+- **Self-rollback, no crash** (`FailAtPrepareRollsBackAllTest`): the
+  single-JVM analog of the presumed-abort scenario. Same fault as
+  `Phase1RollbackFail` (ledger-db throws `XAER_RMFAIL` at prepare), but with
+  no crash: Atomikos rolls back account-db's already-prepared branch
+  synchronously, inside the same `tm.commit()` call, and the caller sees a
+  `jakarta.transaction.RollbackException`. This is the ordinary, spec-level
+  "a resource fails at prepare → all roll back" behavior — recovery-driven
+  presumed abort only enters the picture once a crash prevents that
+  in-process rollback from happening, which is what `Phase1RollbackFail` /
+  `Phase2RollbackRecover` demonstrate. Also runs with `mvn test`.
 
 - **Crash + restart recovery, commit path** (`Phase1Fail` / `Phase2Recover`):
   a genuine process crash and a second, independent JVM reading the leftover
@@ -178,6 +189,7 @@ mvn -q exec:java -Dexec.mainClass=demo.Reset
 | `src/main/java/demo/Phase2RollbackRecover.java` | Fresh JVM, no fault, watches Atomikos recover by rolling back (presumed abort) |
 | `src/main/java/demo/RollbackDb.java` | Plain JDBC helpers for the presumed-abort scenario, plus the lock-probe that proves the dangling branch is still held |
 | `src/test/java/demo/FailBeforeCommitSelfHealsTest.java` | `@XaTest`/`@XaFault`-based JUnit 5 test for the same-JVM self-heal path |
+| `src/test/java/demo/FailAtPrepareRollsBackAllTest.java` | `@XaTest`/`@XaFault`-based JUnit 5 test for the same-JVM self-rollback path |
 
 ## Add your own scenario
 
@@ -185,9 +197,10 @@ This demo covers two failure modes so far (fail-before-commit, and
 presumed-abort rollback on a failed prepare). XA has more — fail-after-
 prepare, a fault during recovery, a heuristic outcome. **Fork this repo and
 add one**: use `Phase1Fail`/`Phase2Recover`, `Phase1RollbackFail`/
-`Phase2RollbackRecover`, and `FailBeforeCommitSelfHealsTest` as templates,
-point j-xa-tester at a different operation and phase, and send a pull
-request. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+`Phase2RollbackRecover`, `FailBeforeCommitSelfHealsTest`, and
+`FailAtPrepareRollsBackAllTest` as templates, point j-xa-tester at a
+different operation and phase, and send a pull request. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 Improvements that are purely generic and provider-neutral (a new adapter, a
 core capability) belong upstream in
