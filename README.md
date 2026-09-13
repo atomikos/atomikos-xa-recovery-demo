@@ -45,6 +45,45 @@ resolve it automatically on startup, with no application code involved.
    its own. Watch the balance and ledger count converge in the console
    output.
 
+## A second scenario: presumed abort (rollback by recovery)
+
+`Phase1RollbackFail` / `Phase2RollbackRecover` run the same transfer, but
+inject the fault one phase earlier: `ledger-db` is rigged to throw
+`XAER_RMFAIL` the instant Atomikos calls `prepare()` on it — i.e. it votes
+NO. `account-db` (enlisted first) has already voted YES and is left holding
+a prepared-but-unresolved branch, and the process is hard-killed before
+Atomikos gets a chance to roll that branch back on its own.
+
+This is a genuinely different recovery path from Phase 1/2's, not just a
+smaller version of it: because not every participant voted YES, Atomikos'
+coordinator never reaches its recoverable "in-doubt" state and so never
+writes anything durable for this transaction to its own log — per the
+XA/JTA spec's *presumed abort* rule, the absence of a commit decision on
+record is itself sufficient reason to roll back. On restart, Atomikos scans
+`account-db` via `XAResource.recover()`, finds a prepared branch matching no
+committing decision in its own log, and rolls it back — with no application
+code involved.
+
+`Phase2RollbackRecover` also demonstrates a side effect of that dangling
+branch you won't see from the balance alone: since a prepared-but-uncommitted
+update was never visible to other connections anyway, `account-db`'s row
+already *looks* untouched before recovery runs. What actually changes is
+that `account-db` is still holding a write lock on alice's row for as long
+as the branch stays unresolved — the demo proves this with a plain write
+that blocks (lock timeout) before recovery and succeeds the instant
+Atomikos rolls the branch back.
+
+Run it the same way:
+
+```bash
+mvn -q exec:java -Dexec.mainClass=demo.Phase1RollbackFail
+mvn -q exec:java -Dexec.mainClass=demo.Phase2RollbackRecover
+```
+
+It uses its own data directory (`./data-rollback`) and Atomikos
+`tm_unique_name`, so it never interferes with the fail-before-commit
+scenario above — `mvn -q exec:java -Dexec.mainClass=demo.Reset` wipes both.
+
 ## Keeping the demo quick
 
 An in-doubt transaction is recovered after its timeout has elapsed, so
@@ -53,10 +92,13 @@ An in-doubt transaction is recovered after its timeout has elapsed, so
 `Phase2Recover`'s recovery to be prompt to watch. Production deployments would
 size this off their real `default_jta_timeout`.
 
-## Two recovery paths, two ways of running them
+`RollbackTmConfig` shortens the recovery timeouts so the rollback is prompt
+to watch; production would use its real values.
 
-There are actually two different "Atomikos recovers" stories here, and only
-one of them fits inside a JUnit test:
+## Recovery paths, and how each one is run
+
+There are three different "Atomikos recovers" stories here, and only one of
+them fits inside a JUnit test:
 
 - **Self-heal, no crash** (`FailBeforeCommitSelfHealsTest`): if the process
   is never killed, Atomikos retries a failed commit call on its own, inside
@@ -74,13 +116,17 @@ one of them fits inside a JUnit test:
   mvn test
   ```
 
-- **Crash + restart recovery** (`Phase1Fail` / `Phase2Recover`): a genuine
-  process crash and a second, independent JVM reading the leftover
-  transaction log. This is the more dramatic (and more realistic) failure
-  mode, but it fundamentally can't be a JUnit test — there's no way to
+- **Crash + restart recovery, commit path** (`Phase1Fail` / `Phase2Recover`):
+  a genuine process crash and a second, independent JVM reading the leftover
+  transaction log, recovering by *committing* an in-doubt transaction. This
+  fundamentally can't be a JUnit test — there's no way to
   `Runtime.getRuntime().halt()` the JVM a test is running in without also
   killing the test runner. It's a pair of `main()` methods instead; see
   "Running it" below.
+
+- **Crash + restart recovery, rollback path** (`Phase1RollbackFail` /
+  `Phase2RollbackRecover`): same shape, but recovering by *rolling back* an
+  in-doubt transaction — "presumed abort". See "A second scenario" above.
 
 ## Prerequisites
 
@@ -112,7 +158,7 @@ each poll so you can watch the balance and ledger count go from
 inconsistent to consistent once Atomikos' recovery thread commits
 `account-db`.
 
-To start over:
+To start over (wipes both scenarios' data directories):
 
 ```bash
 mvn -q exec:java -Dexec.mainClass=demo.Reset
@@ -122,21 +168,26 @@ mvn -q exec:java -Dexec.mainClass=demo.Reset
 
 | File | Role |
 |---|---|
-| `src/main/java/demo/TmConfig.java` | Atomikos config shared by both phases — log directory and `tm_unique_name` must match across runs for recovery to find its own log |
-| `src/main/java/demo/Resources.java` | Wraps each H2 `XADataSource` with `FaultInjectingJdbc.wrap(...)` before handing it to `AtomikosDataSourceBean` |
-| `src/main/java/demo/Phase1Fail.java` | Runs the transfer, injects the fault, hard-kills the JVM the instant it fires |
-| `src/main/java/demo/Phase2Recover.java` | Fresh JVM, no fault, watches Atomikos recover |
-| `src/main/java/demo/Db.java` | Plain JDBC helpers for seeding/inspecting the two databases from outside the distributed transaction |
+| `src/main/java/demo/TmConfig.java` | Atomikos config for the commit-path scenario — log directory and `tm_unique_name` must match across runs for recovery to find its own log |
+| `src/main/java/demo/Resources.java` | Wraps each H2 `XADataSource` with `FaultInjectingJdbc.wrap(...)` before handing it to `AtomikosDataSourceBean` — shared by both scenarios |
+| `src/main/java/demo/Phase1Fail.java` | Runs the transfer, injects a fail-before-commit fault, hard-kills the JVM the instant it fires |
+| `src/main/java/demo/Phase2Recover.java` | Fresh JVM, no fault, watches Atomikos recover by committing |
+| `src/main/java/demo/Db.java` | Plain JDBC helpers for seeding/inspecting the commit-path scenario's two databases |
+| `src/main/java/demo/RollbackTmConfig.java` | Atomikos config for the presumed-abort scenario — its own data directory and `tm_unique_name`, independent of `TmConfig` |
+| `src/main/java/demo/Phase1RollbackFail.java` | Runs the transfer, injects a fail-at-prepare fault on `ledger-db`, hard-kills the JVM the instant it fires |
+| `src/main/java/demo/Phase2RollbackRecover.java` | Fresh JVM, no fault, watches Atomikos recover by rolling back (presumed abort) |
+| `src/main/java/demo/RollbackDb.java` | Plain JDBC helpers for the presumed-abort scenario, plus the lock-probe that proves the dangling branch is still held |
 | `src/test/java/demo/FailBeforeCommitSelfHealsTest.java` | `@XaTest`/`@XaFault`-based JUnit 5 test for the same-JVM self-heal path |
 
 ## Add your own scenario
 
-This demo covers one failure mode (fail-before-commit). XA has many more —
-fail-after-prepare, a fault during recovery, a rollback path, a heuristic
-outcome. **Fork this repo and add one**: use `Phase1Fail` / `Phase2Recover`
-and `FailBeforeCommitSelfHealsTest` as templates, point j-xa-tester at a
-different operation and phase, and send a pull request. See
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+This demo covers two failure modes so far (fail-before-commit, and
+presumed-abort rollback on a failed prepare). XA has more — fail-after-
+prepare, a fault during recovery, a heuristic outcome. **Fork this repo and
+add one**: use `Phase1Fail`/`Phase2Recover`, `Phase1RollbackFail`/
+`Phase2RollbackRecover`, and `FailBeforeCommitSelfHealsTest` as templates,
+point j-xa-tester at a different operation and phase, and send a pull
+request. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 Improvements that are purely generic and provider-neutral (a new adapter, a
 core capability) belong upstream in
