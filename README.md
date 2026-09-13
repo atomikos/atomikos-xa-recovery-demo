@@ -92,14 +92,8 @@ An in-doubt transaction is recovered after its timeout has elapsed, so
 `Phase2Recover`'s recovery to be prompt to watch. Production deployments would
 size this off their real `default_jta_timeout`.
 
-The presumed-abort scenario times out differently: `account-db`'s dangling
-branch matches no transaction in Atomikos' own log at all, so Atomikos only
-rolls it back once its *global* `max_timeout` has passed since first
-spotting the unrecognized branch (`XARecoveryManager`) — a per-transaction
-timeout doesn't apply here. `RollbackTmConfig` shortens `max_timeout` (and
-`recovery_delay`) so `Phase2RollbackRecover`'s rollback is prompt to watch.
-Production deployments would size `max_timeout` off how long they're willing
-to leave a truly orphaned branch locking resources at the RM.
+`RollbackTmConfig` shortens the recovery timeouts so the rollback is prompt
+to watch; production would use its real values.
 
 ## Recovery paths, and how each one is run
 
