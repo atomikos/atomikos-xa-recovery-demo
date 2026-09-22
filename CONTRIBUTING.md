@@ -72,5 +72,7 @@ To add one:
   [Apache-2.0](LICENSE).
 
 Think you've found a case where Atomikos does **not** recover correctly?
-That's Atomikos-specific, so it's outside this repo's spec-level PR scope —
-but we'd like to know: email us at support@atomikos.com and we'll look into it.
+That's Atomikos-specific, so it's outside *this* repo's spec-level PR scope —
+but we'd like to know: open a PR (ideally with a reproducing test) on the
+[Atomikos TransactionsEssentials](https://github.com/atomikos/transactions-essentials)
+repo and we'll look into it.
