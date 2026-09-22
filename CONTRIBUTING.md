@@ -71,5 +71,6 @@ To add one:
 - By contributing, you agree your contribution is licensed under
   [Apache-2.0](LICENSE).
 
-Found a case where Atomikos does **not** recover correctly? That's a great
-contribution too — open an issue with the scenario, and we'll look at it.
+Think you've found a case where Atomikos does **not** recover correctly?
+That's Atomikos-specific, so it's outside this repo's spec-level PR scope —
+but we'd like to know: email us at support@atomikos.com and we'll look into it.
