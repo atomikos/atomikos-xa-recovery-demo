@@ -22,6 +22,11 @@ resolve it automatically on startup, with no application code involved.
 - **On the free, open-source edition** — Atomikos TransactionsEssentials.
   You can reproduce every line of this yourself.
 
+Everything here is **spec-level** — behaviour any conformant JTA/XA
+transaction manager must exhibit, demonstrated with Atomikos. Atomikos-specific
+production hardening (self-healing recovery, shared-database recovery, HA) is
+intentionally out of scope here — see **Going to production?** at the end.
+
 ## The scenario
 
 "alice pays rent": `UPDATE accounts SET balance = balance - 200` in
