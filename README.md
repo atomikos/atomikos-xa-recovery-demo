@@ -208,12 +208,13 @@ core capability) belong upstream in
 
 ## Going to production?
 
-Atomikos TransactionsEssentials (used here) is free and open source. When you
-move to production — especially on Kubernetes or the cloud — you may want
-shared-database recovery that survives replaced nodes (LogCloud), HA, and
-commercial support with indemnification. That's
-[Atomikos ExtremeTransactions](https://www.atomikos.com/) — start a
-[free trial](https://www.atomikos.com/Main/ExtremeTransactionsFreeTrial).
+You've just watched Atomikos TransactionsEssentials (free, open source)
+recover a crashed XA transaction on its own. Going live is where that
+recovery has to hold under real conditions — replaced nodes, no local disk,
+HA, an SLA. Atomikos ExtremeTransactions de-risks that step: shared-database
+recovery that survives replaced Kubernetes/cloud nodes (LogCloud), HA, and
+commercial support with indemnification. Prove it against your own setup with
+a [free trial](https://www.atomikos.com/Main/ExtremeTransactionsFreeTrial).
 
 ## Credits & license
 
